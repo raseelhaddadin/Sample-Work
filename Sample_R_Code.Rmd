@@ -1,0 +1,412 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+```{r}
+plot(cars)
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
+DATA CLEANING:
+```{r}
+library(dplyr)
+mxmh_original <- read.csv("mxmh_survey_results 7.csv")
+
+mxmh_remove_columns <- mxmh_original[, -c(1, 3, 8, 30, 31, 32, 33)]
+
+sum(is.na(mxmh_remove_columns))
+mxmh_no_missing_values <- na.omit(mxmh_remove_columns)
+
+min(mxmh_no_missing_values$Age)
+max(mxmh_no_missing_values$Age)
+mean(mxmh_no_missing_values$Age)
+mxmh.df<- filter(mxmh_no_missing_values, Age >= 18, Age <= 35)
+```
+
+
+
+
+
+
+
+
+DATA VISUALIZATIONS:
+```{r}
+if (!require(tidyverse))
+{
+  install.packages("tidyverse")
+} 
+if (!require(mapproj))
+{
+  install.packages("mapproj")
+} 
+if (!require(maps))
+{
+  install.packages("maps")
+} 
+if (!require(ggmap))
+{
+  install.packages("ggmap")
+} 
+library(tidyverse)
+```
+
+
+
+
+```{r}
+#getting counts of all our quantitative data to try and understand the distribution of our predictors.
+ggplot(data=mxmh.df) +
+  geom_bar(mapping=aes(x=Anxiety), fill = "#047e7b") +
+  theme(legend.position = "none",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank()) + 
+  labs(title = "Distribution of Anxiety Levels")
+
+ggplot(data=mxmh.df) +
+  geom_bar(mapping=aes(x=Depression),  fill = "#047e7b") +
+  theme(legend.position = "none",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank())+
+  labs(title = "Distribution of Depression Levels")
+```
+
+
+
+
+```{r}
+# Original data graph before reducing age categories
+ggplot(data = mxmh_original) +
+  geom_histogram(mapping = aes(x = Age), bins = 20, fill = "#047e7b", color = "black") +
+  theme_minimal()+
+  labs(title = "Distribution of Ages (Original)",
+       x = "Age",
+       y = "Count") +
+  theme_minimal() +
+  theme(legend.position = "none",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank())
+# After reducing the age dataset
+ggplot(data = mxmh.df) +
+  geom_histogram(mapping = aes(x = Age), bins = 20, fill = "#047e7b", color = "black") +
+  theme_minimal()+
+  labs(title = "Distribution of Ages (Reduced)",
+       x = "Age",
+       y = "Count") +
+  theme_minimal() +
+  theme(legend.position = "none",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank())+
+  annotate("text", x = 18, y = 75, label = "Highest age: 18 (approx. 75 people)")
+
+```
+
+
+
+LINEAR REGRESSION:
+
+Partitioning the Data
+
+```{r}
+RNGkind(sample.kind = 'Rounding')
+set.seed(123)
+train.rows <- sample(1:dim(mxmh.df)[1], 0.8*dim(mxmh.df)[1])
+train.df <- mxmh.df[train.rows,]
+valid.df <- mxmh.df[-train.rows,]
+head(train.df)
+```
+
+
+
+
+Variable Selection
+
+```{r}
+# Backward Elimination - Anxiety
+library(leaps)
+anxiety_full <- lm(Anxiety ~ . -Depression, data = train.df, na.action = na.exclude)
+back_anxiety <- step(anxiety_full, direction = "backward")
+summary(back_anxiety)
+```
+
+```{r}
+# Backward Elimination - Depression
+depression_full <- lm(Depression ~ .-Anxiety, data = train.df, na.action = na.exclude)
+back_depression <- step(depression_full, direction = "backward")
+summary(back_depression)
+```
+
+```{r}
+# Forward Selection - Anxiety
+anxiety_null <- lm(Anxiety ~ 1, data = train.df, na.action = na.exclude)
+forward_anxiety <- step(anxiety_null, direction = "forward", scope = list(lower = anxiety_null, upper = anxiety_full))
+summary(forward_anxiety)
+```
+
+```{r}
+# Forward Selection - Depression
+depression_null <- lm(Depression ~ 1, data = train.df, na.action = na.exclude)
+forward_depression <- step(depression_null, direction = "forward", scope = list(lower = depression_null, upper = depression_full))
+summary(forward_depression)
+```
+
+```{r}
+# Stepwise Regression - Anxiety
+step_anxiety <- step(anxiety_full, direction = 'both')
+```
+
+```{r}
+# Stepwise Regression - Depression
+step_depression <- step(depression_full, direction = 'both')  
+```
+
+
+
+
+Predictive Accuracy
+
+```{r}
+# Backward Elimination - Anxiety Prediction
+back_anxiety_pred <- predict(back_anxiety, newdata = valid.df, na.action = na.pass)
+head(data.frame(back_anxiety_pred, valid.df$Anxiety))
+```
+
+```{r}
+# Backward Elimination - Depression Prediction
+back_depression_pred <- predict(back_depression, newdata = valid.df, na.action = na.pass)
+head(data.frame(back_depression_pred, valid.df$Depression))
+```
+
+```{r}
+# Forward Selection - Anxiety Prediction
+forward_anxiety_pred <- predict(forward_anxiety, newdata = valid.df, na.action = na.pass)
+head(data.frame(forward_anxiety_pred, valid.df$Anxiety))
+```
+
+```{r}
+# Forward Selection - Depression Prediction
+forward_depression_pred <- predict(forward_depression, newdata = valid.df, na.action = na.pass)
+head(data.frame(forward_depression_pred, valid.df$Depression))
+```
+
+```{r}
+# Stepwise Regression - Anxiety Prediction
+step_anxiety_pred <- predict(step_anxiety, newdata = valid.df, na.action = na.pass)
+head(data.frame(step_anxiety_pred, valid.df$Anxiety))
+```
+
+```{r}
+# Stepwise Regression - Depression Prediction
+step_depression_pred <- predict(step_depression, newdata = valid.df, na.action = na.pass)
+head(data.frame(step_depression_pred, valid.df$Depression))
+```
+
+```{r}
+# Predictive Accuracy - Anxiety
+library(forecast)
+# backward
+accuracy(back_anxiety_pred, valid.df$Anxiety)
+# forward
+accuracy(forward_anxiety_pred, valid.df$Anxiety)
+# stepwise
+accuracy(step_anxiety_pred, valid.df$Anxiety)
+```
+
+```{r}
+# Predictive Accuracy - Depression
+#backward
+accuracy(back_depression_pred, valid.df$Depression)
+#forward
+accuracy(forward_depression_pred, valid.df$Depression)
+#stepwise
+accuracy(step_depression_pred, valid.df$Depression)
+```
+
+
+
+LOGISTIC REGRESSION:
+
+```{r}
+mxmh.log.df <- mxmh.df
+head(mxmh.df)
+head(mxmh.log.df)
+```
+
+Transforming Response Variable into a Binomial 
+
+```{r}
+mean(mxmh.df$Anxiety)
+mean(mxmh.df$Depression)
+```
+
+```{r}
+# Creating a Column for the Anxiety Binary
+threshold <- 6
+mxmh.log.df$anxiety_binary <- ifelse(mxmh.log.df$Anxiety < threshold, 0, 1)
+head(mxmh.log.df)
+```
+
+```{r}
+# Creating a Column for the Depression Binary
+threshold <- 6
+mxmh.log.df$depression_binary <- ifelse(mxmh.log.df$Depression < threshold, 0, 1)
+head(mxmh.log.df)
+```
+
+Visualizing the binary predictors
+```{r}
+# Plot for depression binary
+ggplot(data = mxmh.log.df) +
+  geom_histogram(mapping = aes(x = Age), bins = 20, fill = "#047e7b", color = "black") +
+  facet_wrap(~depression_binary, scales = "free_y") +
+  labs(title = "Distribution of Ages by Depression Binary",
+       x = "Age",
+       y = "Count") +
+  theme_minimal() +
+  theme(legend.position = "none",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank())
+
+# Plot for anxiety binary
+ggplot(data = mxmh.log.df) +
+  geom_histogram(mapping = aes(x = Age), bins = 20, fill = "#047e7b", color = "black") +
+  facet_wrap(~anxiety_binary, scales = "free_y") +
+  labs(title = "Distribution of Ages by Anxiety Binary",
+       x = "Age",
+       y = "Count") +
+  theme_minimal() +
+  theme(legend.position = "none",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank())
+
+```
+
+
+Partitioning Data for Logistic Regression
+
+```{r}
+RNGkind(sample.kind = 'Rounding')
+set.seed(123)
+train.log.rows <- sample(1:dim(mxmh.log.df)[1], 0.8*dim(mxmh.log.df)[1])
+train.log.df <- mxmh.log.df[train.log.rows,]
+valid.log.df <- mxmh.log.df[-train.log.rows,]
+head(train.log.df)
+head(valid.log.df)
+```
+
+
+
+
+Variable Selection
+
+```{r}
+# Backward Elimination - Anxiety
+anxiety_log_full <- glm(anxiety_binary ~ . -Depression -Anxiety -depression_binary, data = train.log.df, family = 'binomial', na.action = na.exclude)
+back_anxiety_log <- step(anxiety_log_full, direction = "backward")
+summary(back_anxiety_log)
+```
+
+```{r}
+# Backward Elimination - Depression
+depression_log_full <- glm(depression_binary ~ . -Depression -Anxiety -anxiety_binary, data = train.log.df, family = 'binomial', na.action = na.exclude)
+back_depression_log <- step(depression_log_full, direction = "backward")
+summary(back_depression_log)
+```
+
+```{r}
+# Forward Selection - Anxiety
+anxiety_log_null <- glm(anxiety_binary ~ 1, data = train.log.df, family = 'binomial', na.action = na.exclude)
+forward_anxiety_log <- step(anxiety_log_null, direction = "forward", scope = list(lower = anxiety_log_null, upper = anxiety_log_full))
+summary(forward_anxiety_log)
+```
+
+```{r}
+# Forward Selection - Depression
+depression_log_null <- glm(depression_binary ~ 1, data = train.log.df, family = 'binomial', na.action = na.exclude)
+forward_depression_log <- step(depression_log_null, direction = "forward", scope = list(lower = depression_log_null, upper = depression_log_full))
+summary(forward_depression_log)
+```
+
+```{r}
+# Stepwise Regression - Anxiety
+step_anxiety_log <- step(anxiety_log_full, direction = 'both')
+```
+
+```{r}
+# Stepwise Regression - Depression
+step_depression_log <- step(depression_log_full, direction = 'both')
+```
+
+
+
+
+Predictive Accuracy
+
+```{r}
+library(caret)
+```
+
+Confusion Matrices
+```{r}
+# Backward Elimination - Anxiety Prediction
+back_anxiety_log_pred <- predict(back_anxiety_log, newdata = valid.log.df, type='response')
+
+
+confusionMatrix(as.factor(ifelse(back_anxiety_log_pred>.55,1,0)),as.factor(valid.log.df$anxiety_binary), positive='1')
+```
+
+```{r}
+# Backward Elimination - Depression Prediction
+back_depression_log_pred <- predict(back_depression_log, newdata = valid.log.df, type='response')
+
+
+confusionMatrix(as.factor(ifelse(back_depression_log_pred>.4,1,0)),as.factor(valid.log.df$depression_binary), positive='1')
+```
+
+```{r}
+# Forward Selection - Anxiety Prediction
+forward_anxiety_log_pred <- predict(forward_anxiety_log, newdata = valid.log.df, type='response')
+
+
+confusionMatrix(as.factor(ifelse(forward_anxiety_log_pred>.55,1,0)),as.factor(valid.log.df$anxiety_binary), positive='1')
+```
+
+```{r}
+# Forward Selection - Depression Prediction
+forward_depression_log_pred <- predict(forward_depression_log, newdata = valid.log.df, type='response')
+
+
+confusionMatrix(as.factor(ifelse(forward_depression_log_pred>.4,1,0)),as.factor(valid.log.df$depression_binary), positive='1')
+```
+
+```{r}
+# Stepwise Regression - Anxiety Prediction
+step_anxiety_log_pred <- predict(step_anxiety_log, newdata = valid.log.df, type='response')
+
+
+confusionMatrix(as.factor(ifelse(step_anxiety_log_pred>.55,1,0)),as.factor(valid.log.df$anxiety_binary), positive='1')
+```
+
+```{r}
+# Stepwise Regression - Depression Prediction
+step_depression_log_pred <- predict(step_depression_log, newdata = valid.log.df, type='response')
+
+
+confusionMatrix(as.factor(ifelse(step_depression_log_pred>.4,1,0)),as.factor(valid.log.df$depression_binary), positive='1')
+```
