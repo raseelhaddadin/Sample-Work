@@ -1,2 +1,6 @@
 # Sample-Work
-Piece of sample code I have worked on for my predictive analytics class final project
+Piece of sample code I have worked on for my Predictive Analytics class final project.
+
+In my Predictive Analytics class, for our final project we were tasked with using information from a dataset to predict anything we wanted. My group and I found a dataset on Kaggle that consisted of 736 observations and 33 columns. The data set aimed to identify correlations between an individual’s music taste and their self-reported mental health. Respondents ranked how often they listen to 16 music genres, where they could select Never, Rarely, Sometimes, or Very Frequently. Next, respondents ranked Anxiety, Depression, Insomnia, and OCD on a scale of 0-10, where 0 represents never experiencing the disorder and 10 represents experiencing it regularly or to an extreme. Using this data set we aimed to use linear and logistic regressions to predict mental health impacts based on the  nuances of an individual's musical preferences.
+
+This R code shows the logistic and linear regressions I created and ran for the group project that I then used to run confusion matrixes that helped us understand which variables were the important ones, thus helping us predict whether someone will have depression or anxiety. Additionally, I used libraries and packages such as ggplot2 to visualize the data so I could understand the dataset more. 
